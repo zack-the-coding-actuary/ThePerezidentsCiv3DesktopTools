@@ -9,3 +9,6 @@ publish/
 
 # Any .txt files that are for personal reference
 *.txt
+
+# Testing project is local-only
+Testing/

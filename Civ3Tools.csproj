@@ -10,6 +10,8 @@
   <ItemGroup>
     <Compile Remove="Blast\**" />
     <Compile Remove="QueryCiv3\**" />
+    <Compile Remove="The Perezident's Civ 3 Desktop Tools\**" />
+    <Compile Remove="Testing\**" />
   </ItemGroup>
 
   <ItemGroup>
