@@ -1,32 +1,48 @@
 ﻿using QueryCiv3;
 using QueryCiv3.Sav;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Civ3Tools
 {
     public static class TurnOrchestrator
     {
-        public static GAME? GetSavData(string savPath, string? biqPath = null)
-        {
-            biqPath ??= InferBiqPath(savPath);
-            var saveBytes = Util.ReadFile(savPath);
-            var biqBytes = Util.ReadFile(biqPath);
-            var savData = new SavData(saveBytes, biqBytes);
-            return savData.Game;
-        }
+        // Offset within the save file where the embedded BIQ section length is stored.
+        private const int BIQ_LENGTH_OFFSET = 38;
+        // Offset where the embedded BIQ section data begins.
+        private const int BIQ_SECTION_START = 562;
+        // Little-endian int32 encoding of the ASCII string "GAME".
+        private const int GAME_HEADER = 0x454D4147;
 
-        // Walk up two directories from the SAV (e.g. Saves/Auto/ -> Conquests/) and find the first .biq file.
-        private static string InferBiqPath(string savPath)
+        // Scans only for the GAME section header in the save file and copies it directly,
+        // bypassing the full SavData parse that fails on non-vanilla scenario saves.
+        public static unsafe GAME? GetGameDataFromSav(string savPath)
         {
-            string conquestsDir = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(savPath)!, "..", ".."));
-            string[] biqs = Directory.GetFiles(conquestsDir, "*.biq");
-            if (biqs.Length == 0)
-                throw new FileNotFoundException($"Could not find a .biq file in '{conquestsDir}'. Pass biqPath explicitly.");
-            return biqs[0];
+            byte[] saveBytes = Util.ReadFile(savPath);
+
+            int biqLength = BitConverter.ToInt32(saveBytes, BIQ_LENGTH_OFFSET);
+            int scanStart = BIQ_SECTION_START + biqLength;
+
+            fixed (byte* bytePtr = saveBytes)
+            {
+                int* scan = (int*)(bytePtr + scanStart);
+                byte* end = bytePtr + saveBytes.Length;
+
+                while ((byte*)scan < end)
+                {
+                    if (*scan == GAME_HEADER)
+                    {
+                        if ((byte*)scan + sizeof(GAME) > end)
+                            return null;
+
+                        GAME game = default;
+                        Buffer.MemoryCopy(scan, &game, sizeof(GAME), sizeof(GAME));
+                        return game;
+                    }
+                    scan++;
+                }
+            }
+
+            return null;
         }
     }
 }
