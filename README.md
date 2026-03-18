@@ -22,22 +22,6 @@ Current features:
 
 ## API Reference
 
-### `TurnOrchestrator` (static)
-
-Low-level utility class for reading and writing fields in decompressed Civ3 `.sav` files. All methods operate on raw `byte[]` and do not require a `.biq` file.
-
-#### Methods
-
-| Signature | Description |
-|---|---|
-| `GAME? GetGameDataFromSav(string savPath)` | Reads and decompresses the file at `savPath`, scans for the `GAME` section, and returns it as a `GAME` struct. Returns `null` if the section is not found. |
-| `GAME? GetGameDataFromSav(byte[] saveBytes)` | Same as above but operates on an already-decompressed byte array. |
-| `string GetGameFingerprint(byte[] saveBytes)` | Returns a SHA-256 hex string that uniquely identifies a game instance. Hashes the embedded BIQ bytes (scenario/ruleset) and the world generation seed. Stable across all saves from the same game. Throws if the `WRLD` section is not found. |
-| `void WriteNextPlayerID(byte[] saveBytes, int id)` | Writes `id` into the `NextPlayerID` field of the `GAME` section in-place. `id` is 1-indexed (0 = barbarians). |
-| `void WriteTurnNumber(byte[] saveBytes, int turn)` | Writes `turn` into the `TurnNumber` field of the `GAME` section in-place. |
-
----
-
 ### `PitBossOrganizer`
 
 Manages turn order and save file state for an asynchronous Play-By-Email game. Intended to be consumed by a bot or server-side API. Thread-safe — concurrent calls to any public method are safe.

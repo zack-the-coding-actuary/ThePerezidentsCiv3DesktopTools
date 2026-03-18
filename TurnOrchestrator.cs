@@ -154,7 +154,7 @@ namespace Civ3Tools
 
     }
 
-    public static class TurnOrchestrator
+    internal static class TurnOrchestrator
     {
         // Offset within the save file where the embedded BIQ section length is stored.
         private const int BIQ_LENGTH_OFFSET = 38;
