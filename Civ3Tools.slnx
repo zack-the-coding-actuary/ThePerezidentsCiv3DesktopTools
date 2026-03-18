@@ -1,6 +1,6 @@
 <Solution>
   <Project Path="Testing/Testing.csproj" Id="14267b56-a6d9-486f-8c8a-4b7c79f37aca" />
-  <Project Path="The Perezident's Civ 3 Desktop Tools/The Perezident's Civ 3 Desktop Tools.csproj" Id="974a6b10-a8f1-4c95-a523-c39be5933fbe" />
+  <Project Path="ThePerezidentsCiv3DesktopTools/ThePerezidentsCiv3DesktopTools.csproj" Id="974a6b10-a8f1-4c95-a523-c39be5933fbe" />
   <Project Path="Blast\Blast.csproj" />
   <Project Path="Civ3Tools.csproj" />
   <Project Path="QueryCiv3\QueryCiv3.csproj" />
