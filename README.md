@@ -9,6 +9,7 @@ The core library exposing high-level functions for working with Civ3 game data. 
 
 Current features:
 - **GetUnitInfo** — reads all unit prototype (PRTO) data from a `.biq` scenario file and exports it to CSV, with human-readable lookups for technologies, resources, governments, terrain, and civilization availability.
+- **MapRevealer** — modifies a `.sav` save game file to reveal and make visible the entire map for Player 1.
 
 ### ThePerezidentsCiv3DesktopTools
 A WinForms desktop application providing a GUI for Civ3Tools functions.
