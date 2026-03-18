@@ -20,6 +20,114 @@ Current features:
 
 ---
 
+## API Reference
+
+### `TurnOrchestrator` (static)
+
+Low-level utility class for reading and writing fields in decompressed Civ3 `.sav` files. All methods operate on raw `byte[]` and do not require a `.biq` file.
+
+#### Methods
+
+| Signature | Description |
+|---|---|
+| `GAME? GetGameDataFromSav(string savPath)` | Reads and decompresses the file at `savPath`, scans for the `GAME` section, and returns it as a `GAME` struct. Returns `null` if the section is not found. |
+| `GAME? GetGameDataFromSav(byte[] saveBytes)` | Same as above but operates on an already-decompressed byte array. |
+| `string GetGameFingerprint(byte[] saveBytes)` | Returns a SHA-256 hex string that uniquely identifies a game instance. Hashes the embedded BIQ bytes (scenario/ruleset) and the world generation seed. Stable across all saves from the same game. Throws if the `WRLD` section is not found. |
+| `void WriteNextPlayerID(byte[] saveBytes, int id)` | Writes `id` into the `NextPlayerID` field of the `GAME` section in-place. `id` is 1-indexed (0 = barbarians). |
+| `void WriteTurnNumber(byte[] saveBytes, int turn)` | Writes `turn` into the `TurnNumber` field of the `GAME` section in-place. |
+
+---
+
+### `PitBossOrganizer`
+
+Manages turn order and save file state for an asynchronous Play-By-Email game. Intended to be consumed by a bot or server-side API. Thread-safe — concurrent calls to any public method are safe.
+
+> **Constructor requirement:** `firstSavFile` must be a save from turn 0 after the first player has already taken their turn. This is the standard handoff format for a new PBE game.
+
+#### Constructor
+
+```csharp
+PitBossOrganizer(byte[] firstSavFile, string[] humanPlayers)
+```
+
+- `firstSavFile` — The initial `.sav` file (compressed or uncompressed).
+- `humanPlayers` — Ordered array of player identifiers (e.g. Discord usernames) in the desired turn order. Index 0 is the first player to act each turn.
+
+Throws if the save file cannot be fingerprinted.
+
+#### Properties
+
+| Property | Type | Description |
+|---|---|---|
+| `Fingerprint` | `string` | SHA-256 game fingerprint. Set once at construction, used to validate all uploaded saves. |
+| `AdminPassword` | `string` | Admin password parsed from the `GAME` section of the initial save. Empty string if none was set. |
+| `HumanPlayers` | `string[]` | Current turn order. |
+| `DecompressedSave` | `byte[]` | The latest accepted save file in decompressed form. Updated each time `ReceiveNewTurn` succeeds. |
+| `TurnTaken` | `bool[]` | Parallel to `HumanPlayers`. `true` for each player who has submitted their turn in the current cycle. |
+| `CurrentTurn` | `int` | 0-based turn counter, incremented by `PassTurn`. |
+
+#### Methods
+
+---
+
+**`byte[] GetConfiguredTurn(string player)`**
+
+Prepares and returns `DecompressedSave` for the given player. Writes the correct `NextPlayerID` and `TurnNumber` into the save bytes before returning.
+
+- Throws if the organizer is locked (another player has the save checked out).
+- Throws if `player` is not found in `HumanPlayers`.
+- Throws if the player has already taken their turn this cycle.
+- Locks the organizer until `ReceiveNewTurn` or `ForceUnlock` is called.
+
+> The returned byte array is the internal buffer. The caller should not modify it.
+
+---
+
+**`void ReceiveNewTurn(byte[] newSave)`**
+
+Validates and accepts an uploaded save file as the new game state.
+
+Validates that:
+1. The fingerprint of `newSave` matches `Fingerprint`.
+2. The turn order is coherent — either the same turn with `NextPlayerID` incremented by 1, or the next turn with `NextPlayerID` equal to 1.
+
+On success: updates `DecompressedSave`, marks the submitting player's `TurnTaken` flag, and releases the lock.
+
+- Throws if the fingerprint does not match.
+- Throws if the turn order is invalid.
+
+---
+
+**`void PassTurn()`**
+
+Resets all `TurnTaken` flags to `false`, writes the new turn number to `DecompressedSave`, and increments `CurrentTurn`. Call this when all players have submitted or when the turn timer expires.
+
+---
+
+**`void ForceUnlock()`**
+
+Releases the lock without accepting a new save. Use this when a player's upload window expires (e.g. 15-minute timeout) so the next player can be served.
+
+---
+
+**`void ChangePlayerOrder(string[] newOrder)`**
+
+Replaces `HumanPlayers` with `newOrder`. The new array must be the same length as the current one. Throws otherwise.
+
+---
+
+**`void Dispose()`**
+
+Implements `IDisposable`. Clears all fields and releases the save buffer for GC. Call this when a game ends or is abandoned. It is recommended that the bot confirm intent with the requestor via DM and require the admin password before calling:
+
+```csharp
+// Bot: "Are you sure you want to end this game? Reply with the admin password to confirm."
+if (confirmedPassword == game.AdminPassword)
+    game.Dispose();
+```
+
+---
+
 ## Dependencies
 
 ### QueryCiv3
