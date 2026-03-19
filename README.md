@@ -17,6 +17,7 @@ A WinForms desktop application providing a GUI for Civ3Tools functions.
 Current features:
 - **Export units to CSV** — select a `.biq` scenario file and export all unit data to a CSV spreadsheet.
 - **Reveal Map for Player 1** — select a `.sav` save game file and export a modified copy with the entire map revealed and visible for Player 1.
+- **Toggle Human/AI Players** — select a `.sav` save game file, toggle each active player slot between Human and AI, and export the modified save.
 
 ---
 
