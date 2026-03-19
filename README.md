@@ -49,9 +49,9 @@ Throws if the save file cannot be fingerprinted.
 | `Fingerprint` | `string` | SHA-256 game fingerprint. Set once at construction, used to validate all uploaded saves. |
 | `AdminPassword` | `string` | Admin password parsed from the `GAME` section of the initial save. Empty string if none was set. |
 | `HumanPlayers` | `string[]` | Current turn order. |
+| `CurrentPlayer` | `int?` | Index into `HumanPlayers` of the player who currently has the save checked out. `HumanPlayers.Length` when the dummy player has it checked out. `null` when no save is checked out. |
 | `DecompressedSave` | `byte[]` | The latest accepted save file in decompressed form. Updated each time `ReceiveNewTurn` or `ReceiveDummyTurn` succeeds. |
 | `TurnTaken` | `bool[]` | Parallel to `HumanPlayers`. `true` for each player who has submitted their turn in the current cycle. Reset to all `false` by `ReceiveDummyTurn`. |
-| `CurrentTurn` | `int` | 0-based turn counter, incremented by `ReceiveDummyTurn`. |
 
 #### Methods
 
@@ -115,6 +115,8 @@ Releases the lock without accepting a new save. Use this when a player's upload 
 **`void ChangePlayerOrder(string[] newOrder)`**
 
 Replaces `HumanPlayers` with `newOrder`. The new array must be the same length as the current one. Throws otherwise.
+
+- Throws if the organizer is locked (a save is currently checked out).
 
 ---
 

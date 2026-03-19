@@ -9,9 +9,9 @@ namespace Civ3Tools
     {
         public string Fingerprint { get; private set; }
         public string[] HumanPlayers { get; private set; }
+        public int? CurrentPlayer { get; private set; }
         public byte[] DecompressedSave { get; private set; }
         public bool[] TurnTaken { get; private set; }
-        public int CurrentTurn { get; private set; }
         public string AdminPassword { get; private set; }
         private bool locked;
         private readonly object _lock = new object();
@@ -21,12 +21,11 @@ namespace Civ3Tools
             // If save file is compressed, decompress it first
             DecompressedSave = EnsureDecompressed(firstSavFile);
             HumanPlayers = humanPlayers;
+            CurrentPlayer = null;
 
             // Instantiate TurnTaken to all false except first player, who we assume took their turn already
             TurnTaken = new bool[HumanPlayers.Length];
             TurnTaken[0] = true;
-
-            CurrentTurn = 0;
 
             // If this function returns null, the error will fire and stop the constructor
             Fingerprint = TurnOrchestrator.GetGameFingerprint(DecompressedSave);
@@ -55,6 +54,7 @@ namespace Civ3Tools
                 else
                 {
                     ChangeNextPlayerID(playerIdx);
+                    CurrentPlayer = playerIdx - 1;
                     locked = true;
                     return DecompressedSave.ToArray(); // Return a clone
                 }
@@ -78,6 +78,7 @@ namespace Civ3Tools
                 {
                     DecompressedSave = newSave;
                     TurnTaken[(int)oldData?.NextPlayerID - 1] = true;
+                    CurrentPlayer = null;
                     locked = false;
                 }
                 else
@@ -94,7 +95,7 @@ namespace Civ3Tools
 
             // Set NextPlayerID to dummy player
             ChangeNextPlayerID(HumanPlayers.Length + 1);
-
+            CurrentPlayer = HumanPlayers.Length; // Set to after the end of current HumanPlayers array since this is the dummy
             return DecompressedSave.ToArray();
         }
 
@@ -115,14 +116,14 @@ namespace Civ3Tools
                 // Check turn order makes sense
                 if (newData?.TurnNumber != null && (newData?.TurnNumber == oldData?.TurnNumber + 1 && newData?.NextPlayerID < oldData?.NextPlayerID))
                 {
-                    // Set save to passed interturn step, set TurnTaken to false for all human players, and advance CurrentTurn
+                    // Set save to passed interturn step and reset TurnTaken for all human players
                     DecompressedSave = dummySave;
                     for (int i = 0; i < TurnTaken.Length; i++)
                     {
                         TurnTaken[i] = false;
                     }
+                    CurrentPlayer = null;
                     locked = false;
-                    CurrentTurn++;
                 }
                 else
                 {
@@ -135,6 +136,7 @@ namespace Civ3Tools
         {
             lock (_lock)
             {
+                CurrentPlayer = null;
                 locked = false;
             }
         }
@@ -143,6 +145,7 @@ namespace Civ3Tools
         {
             lock (_lock)
             {
+                if (locked) throw new ArgumentException("Cannot change player names/order while save checked out.");
                 if (newOrder.Length == HumanPlayers.Length)
                     HumanPlayers = newOrder;
                 else throw new ArgumentException($"New player list is invalid size, expected {HumanPlayers.Length} names.");
@@ -156,18 +159,15 @@ namespace Civ3Tools
                 DecompressedSave = null;
                 TurnTaken = null;
                 HumanPlayers = null;
+                CurrentPlayer = null;
                 Fingerprint = null;
                 AdminPassword = null;
                 locked = false;
-                CurrentTurn = 0;
             }
         }
 
         private void ChangeNextPlayerID(int id) =>
             TurnOrchestrator.WriteNextPlayerID(DecompressedSave, id);
-
-        private void ChangeCurrentTurn(int turn) =>
-            TurnOrchestrator.WriteTurnNumber(DecompressedSave, turn);
 
         private static byte[] EnsureDecompressed(byte[] savFile)
         {
