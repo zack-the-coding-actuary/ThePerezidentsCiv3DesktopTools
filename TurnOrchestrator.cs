@@ -8,6 +8,7 @@ namespace Civ3Tools
     {
         public string Fingerprint { get; private set; }
         public string[] HumanPlayers { get; private set; }
+        public bool[] DefaultAI { get; private set; } // Whether the AI should take this player's turn if they miss the window
         public int? CurrentTurn { get => DecompressedSave is null ? null : StructBuilders.GetGameData(DecompressedSave)?.TurnNumber; }
         public int? CurrentPlayer { get; private set; }
         public byte[] DecompressedSave { get; private set; }
@@ -21,6 +22,7 @@ namespace Civ3Tools
             // If save file is compressed, decompress it first
             DecompressedSave = EnsureDecompressed(firstSavFile);
             HumanPlayers = humanPlayers;
+            DefaultAI = new bool[HumanPlayers.Length];
             CurrentPlayer = null;
 
             // Instantiate TurnTaken to all false except first player, who we assume took their turn already
@@ -88,15 +90,40 @@ namespace Civ3Tools
             }
         }
 
+        public bool ToggleDefaultAI(int playerSlot)
+        {
+            if (0 <= playerSlot && playerSlot < HumanPlayers.Length)
+            {
+                DefaultAI[playerSlot] = !DefaultAI[playerSlot];
+                return DefaultAI[playerSlot];
+            }
+            else
+            {
+                throw new IndexOutOfRangeException("Invalid player slot given.");
+            }
+        }
+
         public byte[] GetDummyTurn()
         {
-            // Lock game while this process is occurring. We do not care if there is an outstanding lock.
-            locked = true;
+            lock (_lock)
+            {
+                // Lock game while this process is occurring. We do not care if there is an outstanding lock.
+                locked = true;
 
-            // Set NextPlayerID to dummy player
-            ChangeNextPlayerID(HumanPlayers.Length + 1);
-            CurrentPlayer = HumanPlayers.Length; // Set to after the end of current HumanPlayers array since this is the dummy
-            return DecompressedSave.ToArray();
+                // Set players who missed their turn to AI controlled, if they consent via DefaultAI array
+                for (int i = 0; i < TurnTaken.Length; i++)
+                {
+                    if (TurnTaken[i] == false && DefaultAI[i] == true)
+                    {
+                        PlayerToggler.SetHumanPlayer(DecompressedSave, i + 1, false);
+                    }
+                }
+
+                // Set NextPlayerID to dummy player
+                ChangeNextPlayerID(HumanPlayers.Length + 1);
+                CurrentPlayer = HumanPlayers.Length; // Set to after the end of current HumanPlayers array since this is the dummy
+                return DecompressedSave.ToArray();
+            }
         }
 
         public void ReceiveDummyTurn(byte[] dummySave)
@@ -109,18 +136,19 @@ namespace Civ3Tools
                 throw new ArgumentException("Error: Invalid save uploaded");
 
             var newData = StructBuilders.GetGameData(dummySave);
-            var oldData = StructBuilders.GetGameData(DecompressedSave);
 
             lock (_lock)
             {
+                var oldData = StructBuilders.GetGameData(DecompressedSave);
                 // Check turn order makes sense
                 if (newData?.TurnNumber != null && (newData?.TurnNumber == oldData?.TurnNumber + 1 && newData?.NextPlayerID < oldData?.NextPlayerID))
                 {
-                    // Set save to passed interturn step and reset TurnTaken for all human players
+                    // Set save to passed interturn step and reset TurnTaken for all human players, reset all human players to human
                     DecompressedSave = dummySave;
                     for (int i = 0; i < TurnTaken.Length; i++)
                     {
                         TurnTaken[i] = false;
+                        PlayerToggler.SetHumanPlayer(DecompressedSave, i + 1, true);
                     }
                     CurrentPlayer = null;
                     locked = false;

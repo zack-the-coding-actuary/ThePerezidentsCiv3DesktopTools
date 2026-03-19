@@ -43,6 +43,51 @@ namespace Civ3Tools
             return null;
         }
 
+        private const int BIQ_SECTION_HEADERS_START = 736;
+        private const int BIQ_GAME_LEN_1 = 16;   // Length + DefaultGameRules + DefaultVictoryConditions + NumberOfPlayableCivs
+        private const int BIQ_GAME_LEN_2 = 5304;
+        private const int BIQ_GAME_LEN_3 = 2017;
+
+        public static QueryCiv3.Biq.GAME? GetBiqGameData(string biqPath) =>
+            GetBiqGameData(Util.ReadFile(biqPath));
+
+        public static unsafe QueryCiv3.Biq.GAME? GetBiqGameData(byte[] biqBytes)
+        {
+            fixed (byte* bytePtr = biqBytes)
+            {
+                byte* scan = bytePtr + BIQ_SECTION_HEADERS_START;
+                byte* end = bytePtr + biqBytes.Length;
+
+                while (scan + 8 < end)
+                {
+                    if (*(int*)scan == GAME_HEADER)
+                    {
+                        byte* dataPtr = scan + 8; // skip "GAME" tag + count int
+
+                        if (dataPtr + BIQ_GAME_LEN_1 > end) return null;
+
+                        QueryCiv3.Biq.GAME game = default;
+                        byte* gamePtr = (byte*)&game;
+
+                        Buffer.MemoryCopy(dataPtr, gamePtr, BIQ_GAME_LEN_1, BIQ_GAME_LEN_1);
+                        int playableCivs = game.NumberOfPlayableCivs == 0 ? 31 : game.NumberOfPlayableCivs;
+                        dataPtr += BIQ_GAME_LEN_1 + playableCivs * sizeof(int); // skip GameCiv
+
+                        if (dataPtr + BIQ_GAME_LEN_2 > end) return null;
+                        Buffer.MemoryCopy(dataPtr, gamePtr + BIQ_GAME_LEN_1, BIQ_GAME_LEN_2, BIQ_GAME_LEN_2);
+                        dataPtr += BIQ_GAME_LEN_2 + playableCivs * sizeof(int); // skip GameAlliance
+
+                        if (dataPtr + BIQ_GAME_LEN_3 > end) return null;
+                        Buffer.MemoryCopy(dataPtr, gamePtr + BIQ_GAME_LEN_1 + BIQ_GAME_LEN_2, BIQ_GAME_LEN_3, BIQ_GAME_LEN_3);
+
+                        return game;
+                    }
+                    scan++;
+                }
+            }
+            return null;
+        }
+
         private const int TILE_HEADER = 0x454C4954; // "TILE"
         // Byte offset of Flags2 within the TILE struct (Pack=1, counting data fields only).
         private const int FLAGS2_OFFSET_IN_TILE = 52;
@@ -68,15 +113,11 @@ namespace Civ3Tools
                     {
                         if (scan + sizeof(TILE) > end) break;
 
-                        TILE tile = default;
-                        Buffer.MemoryCopy(scan, &tile, sizeof(TILE), sizeof(TILE));
+                        TILE_VP tileVP = default;
+                        Buffer.MemoryCopy(scan, &tileVP.Tile, sizeof(TILE), sizeof(TILE));
+                        Buffer.MemoryCopy(scan + FLAGS2_OFFSET_IN_TILE, tileVP.Flags2, FLAGS2_LENGTH, FLAGS2_LENGTH);
 
-                        byte[] flags2 = new byte[FLAGS2_LENGTH];
-                        byte* flags2Ptr = scan + FLAGS2_OFFSET_IN_TILE;
-                        for (int i = 0; i < FLAGS2_LENGTH; i++)
-                            flags2[i] = flags2Ptr[i];
-
-                        tiles.Add(new TILE_VP(tile, flags2));
+                        tiles.Add(tileVP);
                         scan += sizeof(TILE);
                     }
                     else scan++;
@@ -86,16 +127,11 @@ namespace Civ3Tools
             return tiles.ToArray();
         }
 
-        public unsafe class TILE_VP
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, Pack = 1)]
+        public unsafe struct TILE_VP
         {
-            public TILE Tile { get; private set; }
-            public byte[] Flags2 { get; private set; }
-
-            internal TILE_VP(TILE tile, byte[] flags2)
-            {
-                Tile = tile;
-                Flags2 = flags2;
-            }
+            public TILE Tile;
+            public fixed byte Flags2[12];
         }
     }
 }

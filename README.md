@@ -53,6 +53,7 @@ Throws if the save file cannot be fingerprinted.
 | `DecompressedSave` | `byte[]` | The latest accepted save file in decompressed form. Updated each time `ReceiveNewTurn` or `ReceiveDummyTurn` succeeds. |
 | `CurrentTurn` | `int?` | The current game turn number, read directly from the save file. `null` if the organizer has been disposed or the GAME section cannot be found. |
 | `TurnTaken` | `bool[]` | Parallel to `HumanPlayers`. `true` for each player who has submitted their turn in the current cycle. Reset to all `false` by `ReceiveDummyTurn`. |
+| `DefaultAI` | `bool[]` | Parallel to `HumanPlayers`. `true` for each player who has consented to the Civ 3 AI taking their turn if they miss the submission window. Toggled via `ToggleDefaultAI`. |
 
 #### Methods
 
@@ -88,6 +89,8 @@ On success: updates `DecompressedSave`, marks the submitting player's `TurnTaken
 
 Prepares and returns a copy of `DecompressedSave` with `NextPlayerID` set to the dummy player slot. Call this once all real players have submitted their turns. Locks the organizer regardless of prior lock state.
 
+Before returning, sets any player who missed their turn (`TurnTaken[i] == false`) and has consented to AI control (`DefaultAI[i] == true`) to AI-controlled in the save bytes. Players who did not consent remain human-controlled — they will simply be skipped by Civ 3 in the interturn.
+
 The admin should load this save, immediately end turn without making any moves, and upload the result via `ReceiveDummyTurn`. Civ 3 will run inter-turn calculations and advance to the next turn number.
 
 ---
@@ -100,7 +103,7 @@ Validates that:
 1. The fingerprint of `dummySave` matches `Fingerprint`.
 2. The turn number has incremented by 1 and `NextPlayerID` is less than the previous value (i.e. Civ 3 wrapped back to player 1).
 
-On success: updates `DecompressedSave`, resets all `TurnTaken` flags to `false`, increments `CurrentTurn`, and releases the lock.
+On success: updates `DecompressedSave`, resets all `TurnTaken` flags to `false`, restores all players to human-controlled (reversing any AI assignments made by `GetDummyTurn`), and releases the lock.
 
 - Throws if the fingerprint does not match.
 - Throws if the turn order is invalid.
@@ -110,6 +113,16 @@ On success: updates `DecompressedSave`, resets all `TurnTaken` flags to `false`,
 **`void ForceUnlock()`**
 
 Releases the lock without accepting a new save. Use this when a player's upload window expires (e.g. 15-minute timeout) so the next player can be served.
+
+---
+
+**`bool ToggleDefaultAI(int playerSlot)`**
+
+Toggles the `DefaultAI` consent flag for the player at `playerSlot` (zero-indexed). Returns the new value of the flag after toggling.
+
+When `DefaultAI[i]` is `true`, the player at index `i` has consented to have the Civ 3 AI play their turn if they miss the submission window. `GetDummyTurn` reads this flag and sets those players to AI-controlled before handing off to the admin.
+
+- Throws if `playerSlot` is out of range.
 
 ---
 
