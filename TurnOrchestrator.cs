@@ -1,5 +1,4 @@
 using QueryCiv3;
-using QueryCiv3.Sav;
 using System;
 using System.Security.Cryptography;
 
@@ -9,6 +8,7 @@ namespace Civ3Tools
     {
         public string Fingerprint { get; private set; }
         public string[] HumanPlayers { get; private set; }
+        public int? CurrentTurn { get => DecompressedSave is null ? null : StructBuilders.GetGameData(DecompressedSave)?.TurnNumber; }
         public int? CurrentPlayer { get; private set; }
         public byte[] DecompressedSave { get; private set; }
         public bool[] TurnTaken { get; private set; }
@@ -30,7 +30,7 @@ namespace Civ3Tools
             // If this function returns null, the error will fire and stop the constructor
             Fingerprint = TurnOrchestrator.GetGameFingerprint(DecompressedSave);
 
-            AdminPassword = TurnOrchestrator.GetGameDataFromSav(DecompressedSave)?.AdminPassword ?? string.Empty;
+            AdminPassword = StructBuilders.GetGameData(DecompressedSave)?.AdminPassword ?? string.Empty;
 
             // Lock to prevent other players from downloading a save while another player has one checked out
             locked = false;
@@ -68,12 +68,12 @@ namespace Civ3Tools
             if (TurnOrchestrator.GetGameFingerprint(newSave) != Fingerprint)
                 throw new ArgumentException("Error: Invalid save uploaded");
 
-            var newData = TurnOrchestrator.GetGameDataFromSav(newSave);
+            var newData = StructBuilders.GetGameData(newSave);
 
             lock (_lock)
             {
                 // Ensure turn order makes sense: same turn number, NextPlayerID incremented by 1
-                var oldData = TurnOrchestrator.GetGameDataFromSav(DecompressedSave);
+                var oldData = StructBuilders.GetGameData(DecompressedSave);
                 if (newData?.TurnNumber != null && (newData?.TurnNumber == oldData?.TurnNumber && newData?.NextPlayerID == oldData?.NextPlayerID + 1))
                 {
                     DecompressedSave = newSave;
@@ -108,8 +108,8 @@ namespace Civ3Tools
             if (TurnOrchestrator.GetGameFingerprint(dummySave) != Fingerprint)
                 throw new ArgumentException("Error: Invalid save uploaded");
 
-            var newData = TurnOrchestrator.GetGameDataFromSav(dummySave);
-            var oldData = TurnOrchestrator.GetGameDataFromSav(DecompressedSave);
+            var newData = StructBuilders.GetGameData(dummySave);
+            var oldData = StructBuilders.GetGameData(DecompressedSave);
 
             lock (_lock)
             {
@@ -245,39 +245,6 @@ namespace Civ3Tools
                 }
             }
             throw new InvalidOperationException("GAME section not found in save file.");
-        }
-
-        // Scans only for the GAME section header in the save file and copies it directly,
-        // bypassing the full SavData parse that fails on non-vanilla scenario saves.
-        public static GAME? GetGameDataFromSav(string savPath) =>
-            GetGameDataFromSav(Util.ReadFile(savPath));
-
-        public static unsafe GAME? GetGameDataFromSav(byte[] saveBytes)
-        {
-            int biqLength = BitConverter.ToInt32(saveBytes, BIQ_LENGTH_OFFSET);
-            int scanStart = BIQ_SECTION_START + biqLength;
-
-            fixed (byte* bytePtr = saveBytes)
-            {
-                byte* scan = bytePtr + scanStart;
-                byte* end = bytePtr + saveBytes.Length;
-
-                while (scan < end)
-                {
-                    if (*(int*)scan == GAME_HEADER)
-                    {
-                        if (scan + sizeof(GAME) > end)
-                            return null;
-
-                        GAME game = default;
-                        Buffer.MemoryCopy(scan, &game, sizeof(GAME), sizeof(GAME));
-                        return game;
-                    }
-                    scan++;
-                }
-            }
-
-            return null;
         }
     }
 }

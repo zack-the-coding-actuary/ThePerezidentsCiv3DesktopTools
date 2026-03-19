@@ -51,6 +51,7 @@ Throws if the save file cannot be fingerprinted.
 | `HumanPlayers` | `string[]` | Current turn order. |
 | `CurrentPlayer` | `int?` | Index into `HumanPlayers` of the player who currently has the save checked out. `HumanPlayers.Length` when the dummy player has it checked out. `null` when no save is checked out. |
 | `DecompressedSave` | `byte[]` | The latest accepted save file in decompressed form. Updated each time `ReceiveNewTurn` or `ReceiveDummyTurn` succeeds. |
+| `CurrentTurn` | `int?` | The current game turn number, read directly from the save file. `null` if the organizer has been disposed or the GAME section cannot be found. |
 | `TurnTaken` | `bool[]` | Parallel to `HumanPlayers`. `true` for each player who has submitted their turn in the current cycle. Reset to all `false` by `ReceiveDummyTurn`. |
 
 #### Methods
