@@ -48,7 +48,7 @@ Throws if the save file cannot be fingerprinted.
 
 | Property | Type | Description |
 |---|---|---|
-| `Fingerprint` | `string` | SHA-256 game fingerprint. Set once at construction, used to validate all uploaded saves. |
+| `Fingerprint` | `string` | SHA-256 hash of the map's WorldSeed. Set once at construction, used to validate all uploaded saves belong to the same game. |
 | `AdminPassword` | `string` | Admin password parsed from the `GAME` section of the initial save. Empty string if none was set. |
 | `HumanPlayers` | `string[]` | Current turn order. |
 | `CurrentPlayer` | `int?` | Index into `HumanPlayers` of the player who currently has the save checked out. `HumanPlayers.Length` when the dummy player has it checked out. `null` when no save is checked out. |

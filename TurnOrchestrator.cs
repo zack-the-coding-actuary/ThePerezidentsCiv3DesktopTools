@@ -251,8 +251,7 @@ namespace Civ3Tools
         private const int WORLD_SEED_OFFSET_IN_WRLD = 174;
 
         // Returns a SHA256 hex string that stably identifies a specific game instance.
-        // Hashes the embedded BIQ bytes (scenario/ruleset) + WorldSeed (map generation seed),
-        // both of which are written once at game creation and never change.
+        // Hashes the WorldSeed from the WRLD section, which is set once at map generation and never changes.
         public static string GetGameFingerprint(byte[] saveBytes)
         {
             int biqLength = BitConverter.ToInt32(saveBytes, BIQ_LENGTH_OFFSET);
@@ -266,10 +265,7 @@ namespace Civ3Tools
                     if (seedOffset + 4 > saveBytes.Length)
                         return null;
 
-                    byte[] toHash = new byte[biqLength + 4];
-                    Array.Copy(saveBytes, BIQ_SECTION_START, toHash, 0, biqLength);
-                    Array.Copy(saveBytes, seedOffset, toHash, biqLength, 4);
-                    return Convert.ToHexString(SHA256.HashData(toHash));
+                    return Convert.ToHexString(SHA256.HashData(saveBytes[seedOffset..(seedOffset + 4)]));
                 }
             }
             throw new ArgumentNullException("Error, could not generate fingerprint for this save file.");
